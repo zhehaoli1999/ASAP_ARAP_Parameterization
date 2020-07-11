@@ -2,6 +2,13 @@
 
 The codes of rendering engine are from teaching assistant Ubpa. 
 
+Requirements
++ Qt5
++ assimp (for loading obj)
+
+Build Method 
++ use cmake: config, generate, then build. 
+
 Editor interface:
 ![](./images/interface.PNG)
 

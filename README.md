@@ -1,6 +1,6 @@
 # ASAP & ARAP Parameterization
 
-The codes of rendering engine are from teaching assistant Ubpa. 
+**The codes of rendering engine are from teaching assistant Ubpa, including graphics mathematical calculation lib UGM, Half edge structure lib UHEMesh and other basic libs.**
 
 Requirements
 + Qt5

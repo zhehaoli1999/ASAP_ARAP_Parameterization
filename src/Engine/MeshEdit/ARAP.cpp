@@ -10,7 +10,7 @@ using namespace Ubpa;
 using namespace Eigen;
 
 ARAP::ARAP(Ptr<SObj> triMeshObj, Ptr<TriMesh> triMesh, bool is_tex)
-	: Paramaterize(triMeshObj, triMesh, false, 0, 1)/* ASAP(triMeshObj, triMesh, true)*/ // Circle boundary and Naive mode
+	: Paramaterize(triMeshObj, triMesh, is_tex, 0, 1)/* ASAP(triMeshObj, triMesh, true)*/ // Circle boundary and Naive mode
 {
 	this->is_tex = is_tex;
 	Init(triMeshObj, triMesh);
@@ -39,9 +39,9 @@ bool ARAP::Init(Ptr<SObj> triMeshObj, Ptr<TriMesh> triMesh)
 	auto v2 = triangle->BoundaryVertice()[1]; 
 	anchor_v2_idx = heMesh->Index(v2);
 	size_t tri_idx = heMesh->Index(triangle);
-	anchor_pos1 = pointf2(points2d[tri_idx][v1][0], points2d[tri_idx][v1][1]);
-	anchor_pos2 = pointf2(points2d[tri_idx][v2][0], points2d[tri_idx][v2][1]);
-
+	//anchor_pos1 = pointf2(points2d[tri_idx][v1][0], points2d[tri_idx][v1][1]);
+	//anchor_pos2 = pointf2(points2d[tri_idx][v2][0], points2d[tri_idx][v2][1]);
+	anchor_pos2 = pointf2(1, 1);
 	// Initialize 3. set coefficients of A 
 	setCoefficientA(anchor_v1_idx, anchor_v2_idx);
 
@@ -51,21 +51,21 @@ bool ARAP::Init(Ptr<SObj> triMeshObj, Ptr<TriMesh> triMesh)
 	return true;
 }
 
-bool ARAP::RunARAP(int iter_n, double error = 0.1, int debug=5)
+bool ARAP::RunARAP(int iter_n, double error_threshold = 0.01, int debug=5)
 {
 	// set debug mode
 	if (debug < 50) this->is_debug = false;
 	else this->is_debug = true;
 
 	// do local/global iteration
-	bool flag = false;
 	cout <<"iter:" << iter_n << endl;
 
 	for (int i = 0; i < iter_n; i++)
 	{
 		localupdate();
-		flag = globalupdate(error);
-		if (flag == true) break;
+		double max_error = globalupdate();
+		cout << "iter:" << i << " error: " << max_error << endl;
+		if (max_error < error_threshold) break;
 	}
 
 	// Finally, half-edge structure -> triangle mesh, end. 
@@ -97,11 +97,11 @@ void ARAP::localupdate()
 	getLt();
 }
 
-bool ARAP::globalupdate(double error)
+double ARAP::globalupdate()
 {
 	// first, set b
 	setb(anchor_v1_idx, anchor_pos1, anchor_v2_idx, anchor_pos2);
-	
+	double max_error = -1 ; 
 	// Then solve the equation
 	ARAP_solution = ARAP_solver.solve(ARAP_mat_A.transpose() * ARAP_mat_b);
 
@@ -110,12 +110,22 @@ bool ARAP::globalupdate(double error)
 		//cout << "b:" << endl << ARAP_mat_b << endl << endl;
 		//cout << "solu:" << endl << ARAP_solution << endl << endl;
 	}
-
 	
+
 	// End, update textCoordinate
 	this->texCoor.clear();
 	for (size_t i = 0; i < nV; i++)
 	{
+		double dist = pointf3::distance(pointf3(ARAP_solution(i, 0), ARAP_solution(i, 1), 0.0), heMesh->Vertices()[i]->pos.cast_to<pointf3>());
+		if (max_error < 0) 
+		{
+			max_error = dist;
+		}
+		else if(max_error < dist)
+		{
+			max_error = dist;
+		}
+		
 		heMesh->Vertices()[i]->pos[0] = ARAP_solution(i, 0);
 		heMesh->Vertices()[i]->pos[1] = ARAP_solution(i, 1);
 		heMesh->Vertices()[i]->pos[2] = 0.0;
@@ -123,7 +133,7 @@ bool ARAP::globalupdate(double error)
 		texCoor.push_back(pointf2(ARAP_solution(i, 0), ARAP_solution(i, 1)));
 	}
 
-	return false;
+	return max_error;
 }
 
 /* Get newest u per iteration */
@@ -152,7 +162,7 @@ void ARAP::getLt()
 		St.setZero();
 
 		// get St
-		for (size_t i = 0; i < 3; i++)
+		for (int i = 0; i < 3; i++)
 		{
 			V* u0 = vec_u[i];
 			V* u1 = vec_u[(i+1)%3]; // % ?
@@ -164,7 +174,7 @@ void ARAP::getLt()
 			pointf3 x1 = mapped_u[u1];
 			MatrixXd delta_x(2, 1);
 			delta_x <<
-				x0[0] - x1[0], x1[0] - x1[1];
+				x0[0] - x1[0], x0[1] - x1[1];
 
 			double cot = getCotan(t, vec_u[(i + 2) % 3]);
 
@@ -175,11 +185,29 @@ void ARAP::getLt()
 		JacobiSVD<MatrixXd> svd(St, ComputeThinU | ComputeThinV);
 
 		Matrix2d Lt = svd.matrixU() * svd.matrixV().transpose(); // Lt = U * V^T
+		/*cout << svd.matrixV().transpose() << endl << endl;*/ // DEBUG
+		//if (Lt.determinant() < 0 )
+		//{
+		//	if (is_debug) {
+		//		//cout << "before" << Lt.determinant() << endl;
+		//	}
+		//	Matrix2d newV;
+		//	newV <<
+		//		svd.matrixV().transpose()(0, 0), svd.matrixV().transpose()(0, 1),
+		//		-(svd.matrixV().transpose()(1, 0)), -(svd.matrixV().transpose()(1, 1));
+		//	if (is_debug) {
+		//		//cout << newV << endl;
+		//	}
+		//	Lt = svd.matrixU() * newV;
+		//	assert(Lt.determinant() > 0);
+		//}
 
 		if (is_debug)
 		{
-			cout << svd.singularValues() << endl << endl;
+			cout << Lt.determinant() << endl;
+			//cout << svd.singularValues() << endl << endl;
 		}
+
 		//cout << Lt << endl; // DEBUG
 		
 		//Lt << 1, 0, 0, 1; // DEBUG
@@ -283,7 +311,7 @@ void ARAP::setCoefficientA(size_t idx1, size_t idx2)
 	// Other non-anchor points
 	for (size_t i = 0; i < nV; i++)
 	{
-		if (i != idx1 && i != idx2) {
+		if (/*i != idx1 &&*/ i != idx2) {
 			auto v = heMesh->Vertices()[i];
 			double cotan_sum = 0.0;
 

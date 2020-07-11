@@ -2,8 +2,6 @@
 #include <Engine/Primitive/TriMesh.h>
 #include <Engine/Primitive/TetMesh.h>
 #include <Engine/MeshEdit/Simulate.h>
-#include <Engine/MeshEdit/FastSimulate.h>
-
 namespace Ubpa {
 	class MassSpring final: public Primitive {
 	public:
@@ -65,10 +63,9 @@ namespace Ubpa {
 		
 		void RunSimu() { simulation->Run(); Update(simulation->GetPositions()); };
 		void InitSimu() { simulation->Init(); Update(simulation->GetPositions()); };
-		//Ptr<Simulate> GetSimu() {return simulation;};
-		Ptr<FastSimulate> GetSimu() { return simulation; };
+		Ptr<Simulate> GetSimu() {return simulation;};
 	private:
-		void NewSimu() { simulation = FastSimulate::New(pointlist, edgelist); };
+		void NewSimu() { simulation = Simulate::New(pointlist, edgelist); };
 		static bool SortEdge(std::vector<unsigned>f1, std::vector<unsigned>f2);
 	private:
 		std::vector<unsigned> tetrahedronlist;
@@ -78,8 +75,8 @@ namespace Ubpa {
 		Ptr<Primitive> mesh;
 		Mesh_TYPE mesh_type;
 
-		//Ptr<Simulate> simulation;
-		Ptr<FastSimulate> simulation;
+		Ptr<Simulate> simulation;
+
 
 		bboxf3 box;
 	};
